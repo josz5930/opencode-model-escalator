@@ -1,0 +1,12 @@
+node_modules/
+dist/
+chat-plan.txt
+
+# Agent / dev tooling (excluded from open-source release)
+.claude/
+.agents/
+.opencode/
+.codex/
+.bmad-loop/
+_bmad/
+_bmad-output/

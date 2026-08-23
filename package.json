@@ -1,0 +1,25 @@
+{
+  "name": "opencode-model-escalator",
+  "version": "0.1.0",
+  "description": "OpenCode plugin that escalates a coding agent through a cheap-to-strong model chain when it is logically stuck. This package currently ships the pure, LLM-free detection core.",
+  "type": "module",
+  "author": "Joseph Zeng (josz5930)",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
