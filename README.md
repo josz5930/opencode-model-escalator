@@ -23,13 +23,30 @@ Verified against **OpenCode 1.18.21**. Requires OpenCode `>= 1.18.21`.
 
 ---
 
-## 60-second install
+## Install
 
-Do **not** run `npm install` for this plugin. Do **not** copy files into `.opencode/plugins/`. OpenCode fetches `github:josz5930/opencode-model-escalator` on startup.
+Two files in your project: register the plugin in `opencode.json`, and add the required `.opencode/escalator.json` chain (next section). Never copy plugin source into `.opencode/plugins/` — auto-discovery loads it with no options and the load fails.
 
-**Need:** OpenCode `>= 1.18.21` on `PATH`. For the curl installer: Bash, `curl`, and one of `python3` / `node` / `bun`. Never `sudo`.
+### Register the plugin — npm (recommended)
 
-### macOS / Linux
+Add the package name to the `plugin` array in your project's `opencode.json`. OpenCode installs it automatically with Bun at startup and caches it under `~/.cache/opencode/node_modules/`. You do **not** run `npm install` yourself.
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-model-escalator"]
+}
+```
+
+If `opencode.json` already exists, keep every other key and **append** `"opencode-model-escalator"` to the existing `plugin` array — back it up first (`cp opencode.json opencode.json.bak`) and do not replace the whole file with this example. Restart OpenCode after editing.
+
+This is the same file on macOS, Linux, and Windows. On Windows keep the project path, the sidecar path, and the `opencode` binary in the **same** environment (native vs WSL).
+
+### Register the plugin — curl installer (alternative, no npm registry)
+
+Prefer npm above. The installer is a no-npm alternative: it wires OpenCode to fetch the plugin straight from GitHub (`github:josz5930/opencode-model-escalator`) and edits `opencode.json` for you.
+
+**Need:** OpenCode `>= 1.18.21` on `PATH`, Bash, `curl`, and one of `python3` / `node` / `bun`. Never `sudo`. Git Bash / WSL work too — from WSL use the WSL path (`/mnt/c/Users/me/project`) and run OpenCode from that same environment.
 
 ```bash
 cd /path/to/your-opencode-project
@@ -58,35 +75,11 @@ The script is idempotent. It:
 
 It **refuses** `opencode.jsonc` (JSON with comments). Add the plugin string by hand in that case.
 
-### Windows (PowerShell)
-
-Git Bash / WSL can use the curl installer. From WSL, use the WSL path (`/mnt/c/Users/me/project`) and run OpenCode from that same environment.
-
-Native PowerShell — two files, merge don't overwrite:
-
-```powershell
-Set-Location 'C:\path\to\your-project'
-New-Item -ItemType Directory -Force '.opencode' | Out-Null
-```
-
-If `opencode.json` does not exist yet:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugin": ["github:josz5930/opencode-model-escalator"]
-}
-```
-
-If it already exists: back it up (`Copy-Item opencode.json opencode.json.bak`), keep every other key, and append `"github:josz5930/opencode-model-escalator"` to the existing `plugin` array.
-
-Then create `.opencode\escalator.json` from the template in the next section.
-
 ### Finished layout
 
 ```text
 your-project/
-├── opencode.json                 # plugin: ["github:josz5930/opencode-model-escalator"]
+├── opencode.json                 # plugin: ["opencode-model-escalator"]  (npm)
 └── .opencode/
     └── escalator.json            # required models[] chain
 ```
@@ -129,7 +122,7 @@ Per-stage patience:
 A `github:` / package-name tuple **does not** deliver options. OpenCode still calls the plugin with `options === undefined`.
 
 ```json
-["github:josz5930/opencode-model-escalator", { "models": [ ... ] }]
+["opencode-model-escalator", { "models": [ ... ] }]
 ```
 
 That object is ignored. Put the chain in `.opencode/escalator.json`.

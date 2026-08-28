@@ -10,13 +10,13 @@
 #   --dir <path>   Project root to install into (default: current directory)
 #   --help         Show this help
 #
-# OpenCode fetches the plugin itself on next start from the GitHub spec
-# written into opencode.json. You do not need npm for this install.
+# OpenCode installs the plugin itself on next start from the npm package
+# name written into opencode.json (fetched from the npm registry via Bun).
 
 set -euo pipefail
 
 REPO="josz5930/opencode-model-escalator"
-PLUGIN_SPEC="github:${REPO}"
+PLUGIN_SPEC="opencode-model-escalator"
 RAW_URL="https://raw.githubusercontent.com/${REPO}/main/install"
 SCHEMA="https://opencode.ai/config.json"
 
