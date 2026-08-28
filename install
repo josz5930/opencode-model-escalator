@@ -1,0 +1,321 @@
+#!/usr/bin/env bash
+# install — curl-pipe installer for opencode-model-escalator
+#
+#   curl -fsSL https://raw.githubusercontent.com/josz5930/opencode-model-escalator/main/install | bash
+#
+# Run from the OpenCode project you want the plugin in. Idempotent: safe to
+# re-run. Does not overwrite an existing .opencode/escalator.json.
+#
+# Options (pass after `bash -s --`):
+#   --dir <path>   Project root to install into (default: current directory)
+#   --help         Show this help
+#
+# OpenCode fetches the plugin itself on next start from the GitHub spec
+# written into opencode.json. You do not need npm for this install.
+
+set -euo pipefail
+
+REPO="josz5930/opencode-model-escalator"
+PLUGIN_SPEC="github:${REPO}"
+RAW_URL="https://raw.githubusercontent.com/${REPO}/main/install"
+SCHEMA="https://opencode.ai/config.json"
+
+DEFAULT_SIDECAR=$(cat <<'EOF'
+{
+  "models": [
+    { "model": "openrouter/google/gemini-2.5-flash-lite" },
+    { "model": "openrouter/openai/gpt-4.1-nano" },
+    { "model": "openrouter/openai/gpt-5-nano" }
+  ]
+}
+EOF
+)
+
+usage() {
+  cat <<EOF
+Install opencode-model-escalator into an OpenCode project.
+
+Usage:
+  curl -fsSL ${RAW_URL} | bash
+  curl -fsSL ${RAW_URL} | bash -s -- --dir /path/to/project
+
+The script adds ${PLUGIN_SPEC} to opencode.json and writes a starter
+.opencode/escalator.json (the model chain) if one is not already present.
+Restart OpenCode afterwards; it installs the plugin on startup.
+EOF
+}
+
+log() { printf '==> %s\n' "$*"; }
+warn() { printf 'warning: %s\n' "$*" >&2; }
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+PROJECT_DIR=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --dir)
+      [ $# -ge 2 ] || die "--dir requires a path"
+      PROJECT_DIR=$2
+      shift 2
+      ;;
+    --dir=*)
+      PROJECT_DIR=${1#--dir=}
+      shift
+      ;;
+    *)
+      die "unknown argument: $1 (try --help)"
+      ;;
+  esac
+done
+
+if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+  die "refusing to run as root. Re-run without sudo."
+fi
+
+if [ -z "$PROJECT_DIR" ]; then
+  PROJECT_DIR=$(pwd)
+fi
+
+# Resolve to an absolute path without requiring GNU readlink.
+case "$PROJECT_DIR" in
+  /*) ;;
+  *) PROJECT_DIR=$(pwd)/$PROJECT_DIR ;;
+esac
+if [ -d "$PROJECT_DIR" ]; then
+  PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd)
+else
+  die "directory does not exist: $PROJECT_DIR"
+fi
+
+# Prefer an existing OpenCode config; otherwise create opencode.json at the
+# project root. Do not attempt to parse JSONC (comments) — fail loudly.
+pick_config() {
+  if [ -f "$PROJECT_DIR/opencode.json" ]; then
+    printf '%s\n' "$PROJECT_DIR/opencode.json"
+    return
+  fi
+  if [ -f "$PROJECT_DIR/.opencode/opencode.json" ]; then
+    printf '%s\n' "$PROJECT_DIR/.opencode/opencode.json"
+    return
+  fi
+  if [ -f "$PROJECT_DIR/opencode.jsonc" ] || [ -f "$PROJECT_DIR/.opencode/opencode.jsonc" ]; then
+    die "this project uses opencode.jsonc (JSON with comments), which this installer will not rewrite. Add \"${PLUGIN_SPEC}\" to the plugin array yourself, then create .opencode/escalator.json (see ${RAW_URL%%/install}/README.md)."
+  fi
+  printf '%s\n' "$PROJECT_DIR/opencode.json"
+}
+
+# True if $1 is an interpreter that can actually execute a one-liner.
+usable() {
+  command -v "$1" >/dev/null 2>&1 || return 1
+  case "$1" in
+    python3|python) "$1" -c 'import json,os,sys; os.replace' >/dev/null 2>&1 ;;
+    node)           "$1" -e 'require("fs"); require("path")' >/dev/null 2>&1 ;;
+    bun)            "$1" -e 'require("fs"); require("path")' >/dev/null 2>&1 ;;
+    *)              return 1 ;;
+  esac
+}
+
+# Mutate opencode.json: ensure plugin[] contains PLUGIN_SPEC. Prints
+# "added" or "present" on stdout. Uses python3, then node, then bun.
+merge_plugin() {
+  local config=$1
+  local spec=$2
+  local runner=""
+
+  if usable python3; then
+    runner=python3
+  elif usable python; then
+    runner=python
+  elif usable node; then
+    runner=node
+  elif usable bun; then
+    runner=bun
+  else
+    die "need python3, node, or bun to edit ${config}. Install one of those, or add \"${spec}\" to the plugin array by hand."
+  fi
+
+  case "$runner" in
+    python3|python)
+      "$runner" - "$config" "$spec" "$SCHEMA" <<'PY'
+import json, os, sys
+
+path, spec, schema = sys.argv[1], sys.argv[2], sys.argv[3]
+
+def is_this_plugin(entry):
+    if isinstance(entry, str):
+        s = entry
+    elif isinstance(entry, list) and entry and isinstance(entry[0], str):
+        s = entry[0]
+    elif isinstance(entry, dict):
+        s = str(entry.get("package") or entry.get("name") or "")
+    else:
+        return False
+    s = s.lower()
+    return (
+        "opencode-model-escalator" in s
+        or s.endswith("model-escalator.ts")
+        or s.rstrip("/").endswith("/model-escalator")
+    )
+
+if os.path.exists(path):
+    with open(path, encoding="utf-8") as f:
+        raw = f.read()
+    if not raw.strip():
+        data = {}
+    else:
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            sys.stderr.write(
+                "error: %s is not valid JSON (%s). Fix it, or add the plugin by hand.\n"
+                % (path, e)
+            )
+            sys.exit(1)
+    if not isinstance(data, dict):
+        sys.stderr.write("error: %s must contain a JSON object.\n" % path)
+        sys.exit(1)
+else:
+    data = {}
+
+if "$schema" not in data:
+    data["$schema"] = schema
+
+plugins = data.get("plugin")
+if plugins is None:
+    plugins = []
+elif isinstance(plugins, str):
+    plugins = [plugins]
+elif not isinstance(plugins, list):
+    sys.stderr.write("error: %s: 'plugin' must be an array.\n" % path)
+    sys.exit(1)
+
+if any(is_this_plugin(p) for p in plugins):
+    sys.stdout.write("present\n")
+else:
+    plugins.append(spec)
+    data["plugin"] = plugins
+    directory = os.path.dirname(path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    os.replace(tmp, path)
+    sys.stdout.write("added\n")
+PY
+      ;;
+    node|bun)
+      "$runner" - "$config" "$spec" "$SCHEMA" <<'JS'
+const fs = require("fs");
+const pathMod = require("path");
+const path = process.argv[2];
+const spec = process.argv[3];
+const schema = process.argv[4];
+
+function isThisPlugin(entry) {
+  let s = "";
+  if (typeof entry === "string") s = entry;
+  else if (Array.isArray(entry) && typeof entry[0] === "string") s = entry[0];
+  else if (entry && typeof entry === "object")
+    s = String(entry.package || entry.name || "");
+  s = s.toLowerCase();
+  return (
+    s.includes("opencode-model-escalator") ||
+    s.endsWith("model-escalator.ts") ||
+    s.replace(/\/+$/, "").endsWith("/model-escalator")
+  );
+}
+
+let data = {};
+if (fs.existsSync(path)) {
+  const raw = fs.readFileSync(path, "utf8");
+  if (raw.trim()) {
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      process.stderr.write(
+        `error: ${path} is not valid JSON (${e.message}). Fix it, or add the plugin by hand.\n`
+      );
+      process.exit(1);
+    }
+  }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    process.stderr.write(`error: ${path} must contain a JSON object.\n`);
+    process.exit(1);
+  }
+}
+
+if (!Object.prototype.hasOwnProperty.call(data, "$schema")) {
+  data["$schema"] = schema;
+}
+
+let plugins = data.plugin;
+if (plugins == null) plugins = [];
+else if (typeof plugins === "string") plugins = [plugins];
+else if (!Array.isArray(plugins)) {
+  process.stderr.write(`error: ${path}: 'plugin' must be an array.\n`);
+  process.exit(1);
+}
+
+if (plugins.some(isThisPlugin)) {
+  process.stdout.write("present\n");
+} else {
+  plugins.push(spec);
+  data.plugin = plugins;
+  const dir = pathMod.dirname(path);
+  if (dir) fs.mkdirSync(dir, { recursive: true });
+  const tmp = path + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n");
+  fs.renameSync(tmp, path);
+  process.stdout.write("added\n");
+}
+JS
+      ;;
+  esac
+}
+
+CONFIG=$(pick_config)
+SIDECAR=$PROJECT_DIR/.opencode/escalator.json
+
+log "installing opencode-model-escalator into ${PROJECT_DIR}"
+
+STATUS=$(merge_plugin "$CONFIG" "$PLUGIN_SPEC")
+case "$STATUS" in
+  added)   log "registered ${PLUGIN_SPEC} in ${CONFIG}" ;;
+  present) log "already registered in ${CONFIG}" ;;
+  *)       die "unexpected merge result: ${STATUS}" ;;
+esac
+
+if [ -f "$SIDECAR" ]; then
+  log "leaving existing ${SIDECAR} unchanged"
+else
+  mkdir -p "$(dirname "$SIDECAR")"
+  tmp=$SIDECAR.tmp
+  printf '%s\n' "$DEFAULT_SIDECAR" >"$tmp"
+  mv "$tmp" "$SIDECAR"
+  log "wrote starter model chain to ${SIDECAR}"
+fi
+
+if ! command -v opencode >/dev/null 2>&1; then
+  warn "OpenCode is not on PATH. Install it from https://opencode.ai"
+fi
+
+cat <<EOF
+
+Installed. Next:
+
+  1. Edit the model chain in ${SIDECAR}
+     Use models you already have credentials for in OpenCode.
+     Index 0 is cheapest (every new task starts there); the last entry is the top.
+
+  2. Restart OpenCode in this project. It will fetch ${PLUGIN_SPEC} on startup.
+
+A typo in the chain fails loudly at load rather than silently disabling
+escalation. Re-run this installer any time — it will not duplicate the plugin
+entry or overwrite your sidecar.
+EOF

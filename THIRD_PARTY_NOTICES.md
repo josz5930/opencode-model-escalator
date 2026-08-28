@@ -1,48 +1,38 @@
 # Third-Party Notices
 
-`opencode-model-escalator` is licensed under the MIT License (see [LICENSE](./LICENSE)). It
-incorporates and builds upon third-party software as described below. See
-[`PRD/ATTRIBUTION.md`](./PRD/ATTRIBUTION.md) for the full attribution and licensing rationale,
-including the copyleft boundary that keeps this project MIT-licensable.
+`opencode-model-escalator` is licensed under the MIT License (see [LICENSE](./LICENSE)).
 
----
+This product includes software from opencode-model-fallback
+(https://github.com/ShutovKS/opencode-model-fallback), used under the MIT License.
 
-## Bundled / forked code
+    MIT License
 
-### opencode-model-fallback
+    Copyright (c) 2026 opencode-model-fallback contributors
 
-- **Source:** https://github.com/ShutovKS/opencode-model-fallback
-- **Author:** ShutovKS
-- **License:** MIT
-- **Usage:** The same-session replay engine and the `pendingModel` / `inFlight` guard patterns
-  are forked and adapted from this project.
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
 
-The MIT License requires that the original copyright and permission notice be included with any
-redistribution of this code:
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
 
-```
-MIT License
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
 
-Copyright (c) 2026 opencode-model-fallback contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+Upstream pin: patterns adapted from
+[`ShutovKS/opencode-model-fallback`](https://github.com/ShutovKS/opencode-model-fallback)
+as of 2026-08-26 (MIT). This tree does not vendor a verbatim file copy of that
+repository; the replay / `pendingModel` / `inFlight` machinery was re-implemented
+against that project's public design. Re-verify `LICENSE` at the commit you
+actually copy from if you later vendor source.
 
 ---
 
@@ -58,11 +48,6 @@ SOFTWARE.
   from this project is copied or redistributed.**
 
 Because no GPL-3.0 code is incorporated, this project is not a derivative work of
-`opencode-auto-resume` and carries no GPL-3.0 obligations. It is credited here as acknowledgment
-of the design ideas it contributed. Copying its code would require re-licensing this entire
-project under GPL-3.0 — see [`PRD/ATTRIBUTION.md`](./PRD/ATTRIBUTION.md).
-
----
-
-> Before shipping a release, re-verify each upstream `LICENSE` (copyright year and holder) at the
-> exact commit you fork from — these details can change between revisions.
+`opencode-auto-resume` and carries no GPL-3.0 obligations. Copying its code would
+require re-licensing this entire plugin under GPL-3.0 — see
+[`docs/ATTRIBUTION.md`](./docs/ATTRIBUTION.md).

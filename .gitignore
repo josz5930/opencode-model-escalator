@@ -1,11 +1,14 @@
 node_modules/
-dist/
-chat-plan.txt
+*.tgz
 
 # Agent / dev tooling (excluded from open-source release)
+AGENTS.md
+CLAUDE.md
 .claude/
 .agents/
-.opencode/
+# Ignore OpenCode local tooling except the documented config sidecar.
+.opencode/*
+!.opencode/escalator.json
 .codex/
 .bmad-loop/
 _bmad/

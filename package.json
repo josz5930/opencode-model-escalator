@@ -1,25 +1,72 @@
 {
   "name": "opencode-model-escalator",
   "version": "0.1.0",
-  "description": "OpenCode plugin that escalates a coding agent through a cheap-to-strong model chain when it is logically stuck. This package currently ships the pure, LLM-free detection core.",
+  "description": "OpenCode plugin that escalates a coding agent through a cheap-to-strong model chain when it is logically stuck (the same test keeps failing across repair cycles) or the current model is rate-limited or unavailable.",
   "type": "module",
   "author": "Joseph Zeng (josz5930)",
   "license": "MIT",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "llm",
+    "coding-agent",
+    "model-escalation",
+    "model-fallback",
+    "model-router",
+    "rate-limit",
+    "cost-optimization"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/josz5930/opencode-model-escalator.git"
+  },
+  "homepage": "https://github.com/josz5930/opencode-model-escalator#readme",
+  "bugs": {
+    "url": "https://github.com/josz5930/opencode-model-escalator/issues"
+  },
+  "engines": {
+    "node": ">=18",
+    "opencode": ">=1.18.21"
+  },
+  "main": "dist/plugin/model-escalator.js",
+  "types": "dist/plugin/model-escalator.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/plugin/model-escalator.d.ts",
+      "import": "./dist/plugin/model-escalator.js"
+    },
+    "./core": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "files": [
     "dist",
-    "src"
+    "src",
+    "PRD",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:live": "vitest run --config vitest.live.config.ts",
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json"
+    "typecheck:plugin": "tsc -p tsconfig.plugin.json",
+    "build": "tsc -p tsconfig.build.json",
+    "assert-pack": "node scripts/assert-pack.mjs",
+    "prepack": "npm run build && npm run assert-pack",
+    "prepublishOnly": "npm run typecheck && npm run typecheck:plugin && npm test && npm run build && npm run assert-pack"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.18.21"
   },
   "devDependencies": {
+    "@opencode-ai/plugin": "^1.18.21",
+    "@opencode-ai/sdk": "^1.18.21",
     "@types/node": "^22.10.2",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.11"
   }
 }

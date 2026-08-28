@@ -410,14 +410,17 @@ export const ModelEscalator: Plugin = async ({ client, directory, $ }) => {
 };
 ```
 
-Placement (no npm publish required for v0):
+Placement: the npm package entry is `dist/plugin/model-escalator.js` (source
+`src/plugin/model-escalator.ts`). Local dogfood uses a `[path, options]` tuple.
+Do **not** put the adapter under `.opencode/plugin[s]/` — OpenCode auto-discovers
+that directory with `options === undefined` and load would throw `models is required`.
+Bare-name / npm loads require `.opencode/escalator.json`.
 
 ```text
 your-project/
-├── opencode.json
+├── opencode.json                 # local [path, options] OR bare package name
 └── .opencode/
-    └── plugins/
-        └── model-escalator.ts
+    └── escalator.json            # required when options are not delivered
 ```
 
 ---

@@ -185,10 +185,13 @@ machine owns recovery** to avoid abort/replay race conditions.
 
 ## 10. Rollout
 
-1. **v0 — local plugin.** Ship as `.opencode/plugins/model-escalator.ts`; no npm publish. Config
-   in project `opencode.json`. Dogfood on real tasks with `debug: true`.
-2. **v1 — hardened.** Tune defaults from dogfooding metrics (§6), finalize fingerprint rules,
-   publish to npm.
+1. **v0 — local plugin.** Source adapter at `src/plugin/model-escalator.ts`, loaded via a
+   `[path, options]` tuple (never auto-discovered `.opencode/plugins/`, which gets
+   `options === undefined` and would throw `models is required`). Dogfood on real tasks with
+   `debug: true`.
+2. **v1 — npm package.** `opencode-model-escalator` publishes `dist/plugin/model-escalator.js`.
+   Bare-name / GitHub loads require `.opencode/escalator.json`; a package-name `[name, options]`
+   tuple does not deliver options.
 
 ## 11. Definition of done (product)
 

@@ -38,9 +38,9 @@ must be reconsidered first. Until then, treat the GPLv3 code as read-for-underst
 
 ## License of `opencode-model-escalator`
 
-**Recommended license: MIT.** It is the natural and compatible choice because we fork MIT
-code (`opencode-model-fallback`) and deliberately avoid GPLv3 code. When implementation begins,
-add a top-level `LICENSE` file with the standard MIT text and this copyright line:
+**License: MIT.** It is the natural and compatible choice because we fork MIT
+code (`opencode-model-fallback`) and deliberately avoid GPLv3 code. The top-level
+`LICENSE` file carries the standard MIT text and this copyright line:
 
 ```
 Copyright (c) 2026 Joseph Zeng (josz5930)

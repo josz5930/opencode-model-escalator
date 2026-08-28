@@ -33,6 +33,12 @@ export type FingerprintConfig = {
   strip_ansi: boolean;
   /** Lines retained as the semantic failure content before hashing. */
   failure_markers: string[];
+  /**
+   * Absolute project root, normalized to `<root>` before hashing so that a
+   * checkout path never perturbs a fingerprint (AC-9). Optional; the adapter
+   * supplies the live OpenCode working directory. Empty ⇒ no root scrub.
+   */
+  project_root?: string;
 };
 
 /**
@@ -53,10 +59,28 @@ export type EscalatorConfig = {
   retry_on_errors: number[];
   retry_on_patterns: string[];
   provider_failover: boolean;
+  /**
+   * Bounded same-model retries for a Category-A (infrastructure) failure before
+   * giving up and notifying. `0` disables automatic infra retry. See
+   * CONFIGURATION_REFERENCE.md §4.4 and FR-9.
+   */
+  max_infra_retries: number;
+  /**
+   * Base cooldown (ms) between Category-A retries. The Nth retry waits
+   * `infra_retry_cooldown_ms * 2^(N-1)` (exponential backoff). Applied by the
+   * adapter's `retry` effect, not the deterministic decision path (NFR-1).
+   */
+  infra_retry_cooldown_ms: number;
 
   fingerprint: FingerprintConfig;
 
   shell_tool_name: string;
+  /**
+   * Tool names whose SUCCESSFUL completion counts as a code change for the
+   * repair-cycle counter (FR-3). Configurable so mutations via non-default tools
+   * (formatters, generators, custom edit tools) can be recognized (finding 4).
+   */
+  mutating_tools: string[];
   idle_cleanup_ms: number;
   notify: boolean;
   debug: boolean;

@@ -1,9 +1,8 @@
 /**
  * Public surface of the deterministic detection core.
  *
- * The integration spec (plugin hooks, session state map, replay, control tool,
- * notifications, idle GC) consumes these. Nothing here imports
- * `@opencode-ai/plugin`.
+ * The plugin adapter (`src/plugin/`) and the `./core` subpath consume this
+ * surface. Nothing here imports `@opencode-ai/plugin`.
  */
 
 export type {
@@ -36,3 +35,25 @@ export {
   initialState,
   type RecordFailureResult,
 } from './counter.js';
+
+export {
+  getLastUserPayload,
+  type MessagePart,
+  type MessageInfo,
+  type SessionMessage,
+  type UserPayload,
+} from './replay.js';
+
+export {
+  createEscalator,
+  type Escalator,
+  type RuntimeState,
+  type EscalatorEffects,
+  type LogEntry,
+  type TestResultInput,
+  type FileEditedInput,
+  type ChatMessageInput,
+  type SessionErrorInput,
+  type ControlAction,
+  type ControlStatus,
+} from './session.js';

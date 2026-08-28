@@ -27,6 +27,15 @@ describe('DEFAULTS (CONFIGURATION_REFERENCE.md §3, CFG-1)', () => {
     expect(DEFAULTS.provider_failover).toBe(true);
     expect(DEFAULTS.retry_on_errors).toEqual([429, 500, 502, 503, 504]);
     expect(DEFAULTS.retry_on_patterns).toEqual([]);
+    expect(DEFAULTS.max_infra_retries).toBe(2);
+    expect(DEFAULTS.infra_retry_cooldown_ms).toBe(1000);
+    expect(DEFAULTS.mutating_tools).toEqual([
+      'edit',
+      'write',
+      'patch',
+      'multiedit',
+      'apply_patch',
+    ]);
     expect(DEFAULTS.test_commands).toEqual([
       'pytest',
       'python -m pytest',
@@ -207,5 +216,170 @@ describe('resolveConfig — fail loudly on invalid config (CFG-2, AC-14)', () =>
     expect(() =>
       resolveConfig({ models: CHAIN, retry_on_patterns: ['('] }),
     ).toThrow(/retry_on_patterns.*\(/s);
+  });
+
+  it('throws on a negative max_infra_retries (finding 2)', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, max_infra_retries: -1 }),
+    ).toThrow(/max_infra_retries/);
+  });
+
+  it('throws on a non-array mutating_tools (finding 4)', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, mutating_tools: 'edit' as never }),
+    ).toThrow(/mutating_tools/);
+  });
+
+  it('throws on empty mutating_tools — never silently disable the repair signal (finding 4)', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, mutating_tools: [] }),
+    ).toThrow(/mutating_tools/);
+  });
+
+  it('throws on a non-string mutating_tools element (finding 4)', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, mutating_tools: ['edit', 3] as never }),
+    ).toThrow(/mutating_tools/);
+  });
+
+  it('honors a custom mutating_tools list', () => {
+    const cfg = resolveConfig({ models: CHAIN, mutating_tools: ['format', 'gen'] });
+    expect(cfg.mutating_tools).toEqual(['format', 'gen']);
+  });
+
+  // --- 2026-08-25 finding 11: shell / mutating-tool overlap -----------------
+
+  it('finding 11: rejects the shell tool also being listed as a mutating tool', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, mutating_tools: ['edit', 'bash'] }),
+    ).toThrow(/must not also appear in `mutating_tools`/);
+  });
+
+  it('finding 11: rejects overlap against a custom shell_tool_name too', () => {
+    expect(() =>
+      resolveConfig({
+        models: CHAIN,
+        shell_tool_name: 'sh',
+        mutating_tools: ['edit', 'sh'],
+      }),
+    ).toThrow(/must not also appear in `mutating_tools`/);
+  });
+
+  // --- 2026-08-25 finding 12: empty / ReDoS-prone retry_on_patterns ---------
+
+  it('finding 12: rejects an empty regex source (would classify everything as A)', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, retry_on_patterns: [''] }),
+    ).toThrow(/retry_on_patterns/);
+  });
+
+  it('finding 12: rejects a nested-quantifier (catastrophic-backtracking) source', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, retry_on_patterns: ['(a+)+$'] }),
+    ).toThrow(/nested-quantifier|backtracking|ReDoS/i);
+  });
+
+  it('finding 12: still accepts an ordinary literal-ish pattern', () => {
+    const cfg = resolveConfig({
+      models: CHAIN,
+      retry_on_patterns: ['circuit breaker open'],
+    });
+    expect(cfg.retry_on_patterns).toContain('circuit breaker open');
+  });
+
+  // --- 2026-08-25 finding 13: padded ids & unbounded cooldowns --------------
+
+  it('finding 13: rejects a whitespace-padded model id rather than storing it', () => {
+    expect(() =>
+      resolveConfig({ models: [{ model: ' openrouter / cheap ' }] }),
+    ).toThrow(/whitespace/);
+  });
+
+  it('finding 13: rejects interior whitespace in a model id', () => {
+    expect(() =>
+      resolveConfig({ models: [{ model: 'openrouter/ cheap' }] }),
+    ).toThrow(/whitespace/);
+  });
+
+  it('finding 13: bounds infra_retry_cooldown_ms to the safe timer range', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, infra_retry_cooldown_ms: 2 ** 40 }),
+    ).toThrow(/infra_retry_cooldown_ms/);
+  });
+
+  it('finding 13: bounds idle_cleanup_ms to the safe timer range', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, idle_cleanup_ms: 2 ** 40 }),
+    ).toThrow(/idle_cleanup_ms/);
+  });
+
+  it('throws on a non-boolean enabled / debug (CFG-2)', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, enabled: 'true' as never }),
+    ).toThrow(/enabled/);
+    expect(() => resolveConfig({ models: CHAIN, debug: 1 as never })).toThrow(
+      /debug/,
+    );
+  });
+
+  it('throws on idle_cleanup_ms: 0', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, idle_cleanup_ms: 0 }),
+    ).toThrow(/idle_cleanup_ms/);
+  });
+
+  it('throws on max_infra_retries: 1001', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, max_infra_retries: 1001 }),
+    ).toThrow(/max_infra_retries/);
+  });
+
+  it('P9: rejects whitespace-only test_commands / failure_markers entries', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, test_commands: [' '] }),
+    ).toThrow(/test_commands/);
+    expect(() =>
+      resolveConfig({
+        models: CHAIN,
+        fingerprint: { failure_markers: ['   '] },
+      }),
+    ).toThrow(/failure_markers/);
+  });
+
+  it('P9: stores a trimmed shell_tool_name', () => {
+    const cfg = resolveConfig({ models: CHAIN, shell_tool_name: ' bash' });
+    expect(cfg.shell_tool_name).toBe('bash');
+  });
+
+  it('P9: rejects negative / non-HTTP retry_on_errors', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, retry_on_errors: [-1] }),
+    ).toThrow(/retry_on_errors/);
+    expect(() =>
+      resolveConfig({ models: CHAIN, retry_on_errors: [99] }),
+    ).toThrow(/retry_on_errors/);
+    expect(() =>
+      resolveConfig({ models: CHAIN, retry_on_errors: [600] }),
+    ).toThrow(/retry_on_errors/);
+  });
+
+  it('P9: rejects a {n,} nested-quantifier source', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, retry_on_patterns: ['(a{1,})+$'] }),
+    ).toThrow(/nested-quantifier|backtracking|ReDoS/i);
+  });
+
+  it('P9: rejects a match-all .* pattern', () => {
+    expect(() =>
+      resolveConfig({ models: CHAIN, retry_on_patterns: ['.*'] }),
+    ).toThrow(/empty string|Category A/i);
+  });
+
+  it('P9: fingerprint.strip_ansi undefined does not clobber the default', () => {
+    const cfg = resolveConfig({
+      models: CHAIN,
+      fingerprint: { strip_ansi: undefined },
+    });
+    expect(cfg.fingerprint.strip_ansi).toBe(true);
   });
 });

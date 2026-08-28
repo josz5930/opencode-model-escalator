@@ -60,8 +60,21 @@ describe('recordFailure — purity (spec Design Notes)', () => {
     const s: StuckState = initialState();
     const frozen = Object.freeze({ ...s });
     const r = recordFailure(frozen, FP_A, THRESHOLD);
-    expect(s.repeats).toBe(0); // original untouched
-    expect(r.state).not.toBe(s); // returns a fresh object
+    expect(frozen.repeats).toBe(0);
+    expect(r.state).not.toBe(frozen);
+    expect(s.repeats).toBe(0);
+    expect(r.state).not.toBe(s);
+  });
+});
+
+describe('recordFailure — requireCodeChange=false counts without an edit (P28)', () => {
+  it('two identical fingerprints with the gate off escalate at threshold', () => {
+    let s: StuckState = initialState();
+    let r = recordFailure(s, FP_A, THRESHOLD, false);
+    expect(r.escalate).toBe(false);
+    r = recordFailure(r.state, FP_A, THRESHOLD, false);
+    expect(r.escalate).toBe(true);
+    expect(r.state.repeats).toBe(2);
   });
 });
 

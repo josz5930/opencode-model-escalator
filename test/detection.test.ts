@@ -51,6 +51,28 @@ describe('normalizeOutput (spec §3.3 scrub table, NFR-2)', () => {
     const out = normalizeOutput('\x1b[31mX\x1b[0m', noStrip.fingerprint);
     expect(out).toContain('\x1b[');
   });
+
+  it('finding 16: scrubs the configured project_root to <root>', () => {
+    const rooted = resolveConfig({
+      models: [{ model: 'a/b' }],
+      fingerprint: { project_root: '/home/dev/checkout-xyz' },
+    });
+    const out = normalizeOutput(
+      'FAILED /home/dev/checkout-xyz/src/app.py boom',
+      rooted.fingerprint,
+    );
+    expect(out).not.toContain('/home/dev/checkout-xyz');
+    expect(out).toContain('<root>');
+  });
+
+  it('finding 16: scrubs Windows temp paths to <tmp>', () => {
+    const out = normalizeOutput(
+      'wrote C:\\Users\\dev\\AppData\\Local\\Temp\\pytest-7\\t.log ok',
+      cfg.fingerprint,
+    );
+    expect(out).not.toContain('AppData\\Local\\Temp');
+    expect(out).toContain('<tmp>');
+  });
 });
 
 describe('failureFingerprint — AC-9: noise-only diffs hash EQUAL', () => {
@@ -142,6 +164,47 @@ describe('failureFingerprint — AC-10: semantic diffs hash DIFFERENT', () => {
     );
   });
 
+  it('P10: trailing failure summary survives a long head of matching lines', () => {
+    const noise = Array.from({ length: 600 }, (_, i) => `ERROR deprecation ${i}`).join(
+      '\n',
+    );
+    const a = `${noise}\nFAILED test_alpha\nAssertionError: expected 1`;
+    const b = `${noise}\nFAILED test_beta\nAssertionError: expected 2`;
+    expect(failureFingerprint('pytest', a, cfg)).not.toBe(
+      failureFingerprint('pytest', b, cfg),
+    );
+  });
+
+  it('finding 10: unmarked pytest `E assert` detail lines keep failures distinct on a shared FAILED line', () => {
+    // Same FAILED marker line; the distinguishing value lives only on the
+    // marker-less `E   assert …` detail line. Dropping it would collide these.
+    const a = 'FAILED test_calc.py::test_sum\nE       assert 1 == 2';
+    const b = 'FAILED test_calc.py::test_sum\nE       assert 1 == 3';
+    expect(failureFingerprint('pytest', a, cfg)).not.toBe(
+      failureFingerprint('pytest', b, cfg),
+    );
+  });
+
+  it('2026-08-25 finding 6: unmarked ValueError detail lines keep failures distinct', () => {
+    // The FAILED/ERROR marker line is identical; the only difference lives on an
+    // unmarked `ValueError: …` detail line that carries no `assert`/`E ` prefix.
+    // Retaining error-detail lines (ClassNameError/Exception/…) keeps these apart
+    // so a genuinely different error is never counted as the same repeat (AC-10).
+    const a = 'ERROR test_x\nValueError: one';
+    const b = 'ERROR test_x\nValueError: two';
+    expect(failureFingerprint('pytest', a, cfg)).not.toBe(
+      failureFingerprint('pytest', b, cfg),
+    );
+  });
+
+  it('2026-08-25 finding 6: distinct exception classes on a shared marker stay apart', () => {
+    const a = 'FAILED suite\nKeyError: missing';
+    const b = 'FAILED suite\nRuntimeError: missing';
+    expect(failureFingerprint('pytest', a, cfg)).not.toBe(
+      failureFingerprint('pytest', b, cfg),
+    );
+  });
+
   it('different test command', () => {
     const out = 'FAILED test_x.py::test_y';
     expect(failureFingerprint('pytest', out, cfg)).not.toBe(
@@ -201,11 +264,69 @@ describe('classifyFailure (spec §4, FR-9)', () => {
     expect(classifyFailure('elapsed 4290 iterations', cfg)).toBe('B');
   });
 
+  it('finding 9: an assertion value that happens to be a status code stays "B"', () => {
+    // `Expected: 500 Received: 400` is ordinary capability output — a status
+    // number with NO HTTP/status context must not be misclassified as infra.
+    expect(classifyFailure('Expected: 500 Received: 400', cfg)).toBe('B');
+    expect(classifyFailure('assert response == 503', cfg)).toBe('B');
+  });
+
+  it('P6: Error: 500 / error: 429 in ordinary test output stay "B" in shell mode', () => {
+    expect(
+      classifyFailure('Error: 500', cfg, { requireHttpContext: true }),
+    ).toBe('B');
+    expect(
+      classifyFailure('error: 429', cfg, { requireHttpContext: true }),
+    ).toBe('B');
+  });
+
+  it('finding 9: bare "try again" is capability; "try again later" is infra', () => {
+    expect(classifyFailure('the test says: try again', cfg)).toBe('B');
+    expect(classifyFailure('server busy, try again later', cfg)).toBe('A');
+  });
+
   it('honors user retry_on_patterns', () => {
     const custom = resolveConfig({
       models: [{ model: 'a/b' }],
       retry_on_patterns: ['circuit breaker open'],
     });
     expect(classifyFailure('Circuit Breaker Open', custom)).toBe('A');
+  });
+
+  describe('2026-08-25 finding 8: shell-output phrases require provider/HTTP context', () => {
+    const shell = { requireHttpContext: true } as const;
+
+    it('a bare infra phrase in ordinary test output stays "B" in shell mode', () => {
+      // A normal failed assertion whose text happens to contain an infra phrase
+      // must NOT spoof Category A and bypass capability accounting.
+      expect(classifyFailure('Expected: rate limit exceeded', cfg, shell)).toBe('B');
+      expect(classifyFailure('assert msg == "service unavailable"', cfg, shell)).toBe('B');
+      expect(classifyFailure('printed: quota exceeded', cfg, shell)).toBe('B');
+    });
+
+    it('the same phrase WITH provider/HTTP context is still "A" in shell mode', () => {
+      expect(classifyFailure('HTTP 503 service unavailable', cfg, shell)).toBe('A');
+      expect(
+        classifyFailure('openrouter upstream: rate limit exceeded', cfg, shell),
+      ).toBe('A');
+      expect(
+        classifyFailure('x-ratelimit-remaining: 0 — quota exceeded', cfg, shell),
+      ).toBe('A');
+    });
+
+    it('the authoritative session.error path (default mode) keeps phrases unconditional', () => {
+      // Structured session.error text is trusted: no HTTP framing required.
+      expect(classifyFailure('rate limit exceeded', cfg)).toBe('A');
+      expect(classifyFailure('service unavailable', cfg)).toBe('A');
+    });
+
+    it('user retry_on_patterns and contextual status codes fire in shell mode too', () => {
+      const custom = resolveConfig({
+        models: [{ model: 'a/b' }],
+        retry_on_patterns: ['circuit breaker open'],
+      });
+      expect(classifyFailure('Circuit Breaker Open', custom, shell)).toBe('A');
+      expect(classifyFailure('server returned 503', cfg, shell)).toBe('A');
+    });
   });
 });

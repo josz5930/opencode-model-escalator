@@ -35,7 +35,7 @@ this table, this table wins and the document is a defect.
 | Decision | Value |
 |----------|-------|
 | Plugin / package name | `opencode-model-escalator` |
-| Default model chain (cheap → strong) | `openrouter/deepseek/deepseek-v4-flash-0731` → `openrouter/deepseek/deepseek-v4-pro-0813` → `openrouter/moonshotai/kimi-k3` |
+| Default model chain (cheap → strong) | **No shipped default** — the operator supplies `models[]` (C-4 / OQ1). Examples in CONFIG/README are examples, not a default chain. |
 | Default escalation threshold | 2 consecutive identical failing **repair cycles** per stage |
 | Escalation requires code change between failures | Yes (default `true`) |
 | De-escalation within a task | Never (capability only moves up) |
@@ -60,5 +60,6 @@ hard rule against copying GPLv3 code — are in [ATTRIBUTION.md](./ATTRIBUTION.m
 
 ## Status
 
-Specification stage. No implementation is included in this folder; these documents define
-what will be built and how its behavior will be judged complete.
+Implemented (v0.1.0). This folder is the specification the implementation is judged against.
+The npm package entry is `dist/plugin/model-escalator.js`; local dogfood uses
+`./src/plugin/model-escalator.ts` via a `[path, options]` tuple.
